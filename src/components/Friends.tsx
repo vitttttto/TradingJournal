@@ -100,10 +100,6 @@ export function Friends({
 
   const handleViewUserId = async (id: string) => {
     console.log("Friends.tsx: handleViewUserId called with id", id);
-    if (id === user?.id) {
-      console.log("Friends.tsx: ID matched user.id, returning early");
-      return;
-    }
     try {
       console.log("Friends.tsx: Fetching user settings for", id);
       const { data: friendUser } = await supabase.from('user_settings').select('user_id, username, avatar_url, full_name, friends_private, friends_share_details').eq('user_id', id).maybeSingle();
@@ -113,7 +109,12 @@ export function Friends({
       } else {
         // Find if we have them in friendships to get their details, otherwise fallback
         console.log("Friends.tsx: User has no settings, falling back");
-        viewFriend({ id: id, username: 'User' });
+        // If it's the current user, prefill with user metadata
+        if (id === user?.id) {
+           viewFriend({ id, username: user.user_metadata?.full_name || 'My Profile', avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture });
+        } else {
+           viewFriend({ id: id, username: 'User' });
+        }
       }
     } catch (err) {
       console.error("Friends.tsx: Error in handleViewUserId", err);
@@ -520,7 +521,12 @@ export function Friends({
       }
 
       console.log("Friends.tsx: All fetched successfully. Setting activeView='friend'");
-      setActiveView('friend');
+      const canSeeDetails = !friendObj.settings?.friends_private || friends.some(f => f.id === friendObj.id && f.isMutual) || friendObj.id === user.id;
+      if (canSeeDetails) {
+        setActiveView('friend-journal');
+      } else {
+        setActiveView('friend');
+      }
     } catch (err) {
       console.error("Friends.tsx: error in viewFriend", err);
     } finally {
@@ -1565,6 +1571,50 @@ export function Friends({
       />
 
       {renderModals()}
+
+      {showConnectionsModal && selectedFriend && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 backdrop-blur-md bg-black/60 animate-in fade-in" onClick={() => setShowConnectionsModal(null)}>
+          <div className="relative w-full max-w-sm max-h-[80vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden bg-[#0f1115]" onClick={(e) => e.stopPropagation()} style={panelStyle}>
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5 shrink-0">
+               <h3 className="text-xl font-bold text-white capitalize">{showConnectionsModal}</h3>
+               <button onClick={() => setShowConnectionsModal(null)} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors">
+                  <X className="h-5 w-5" />
+               </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+               {(() => {
+                 const list = friendsOfFriend.filter(f => showConnectionsModal === 'followers' ? f.isFollower : f.isFollowing);
+                 if (list.length === 0) {
+                   return <div className="text-center text-slate-400 py-8 text-sm italic">No {showConnectionsModal} found.</div>;
+                 }
+                 return (
+                   <div className="space-y-3">
+                     {list.map(f => (
+                       <div 
+                         key={f.id} 
+                         onClick={() => {
+                           setShowConnectionsModal(null);
+                           viewFriend(f);
+                         }}
+                         className="flex items-center gap-3 p-3 rounded-2xl border cursor-pointer hover:bg-white/5 transition-colors relative group" 
+                         style={softPanelStyle}
+                       >
+                         <div className="h-10 w-10 shrink-0 rounded-full bg-white/10 flex items-center justify-center font-bold text-white uppercase overflow-hidden">
+                           {f.avatar_url ? <img src={f.avatar_url} alt="" className="w-full h-full object-cover" /> : f.username?.[0] || '?'}
+                         </div>
+                         <div>
+                           <div className="text-sm font-semibold text-white group-hover:text-amber-300 transition-colors">{f.username}</div>
+                           {f.isMutual && <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1"><Check className="h-3 w-3" /> Mutual</div>}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 );
+               })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
