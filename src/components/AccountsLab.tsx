@@ -56,6 +56,7 @@ type Props = {
   trades: TradeRecord[];
   accountsLibrary: any[];
   setAccountsLibrary: (library: any[]) => void;
+  onAccountsDeleted?: (accountIds: string[]) => void;
   panelStyle?: React.CSSProperties;
   softPanelStyle?: React.CSSProperties;
   panelTint?: string;
@@ -63,7 +64,7 @@ type Props = {
   onEditTrade?: (key: string) => void;
 };
 
-export const AccountsLab = ({ trades, accountsLibrary, setAccountsLibrary, panelStyle, softPanelStyle, panelTint = "#0f172a", accentColor = "#4f7cff", onEditTrade }: Props) => {
+export const AccountsLab = ({ trades, accountsLibrary, setAccountsLibrary, onAccountsDeleted, panelStyle, softPanelStyle, panelTint = "#0f172a", accentColor = "#4f7cff", onEditTrade }: Props) => {
   const [isSettingsMode, setIsSettingsMode] = useState(false);
   const [newFirmName, setNewFirmName] = useState("");
   const [newAccountNames, setNewAccountNames] = useState<Record<string, string>>({}); 
@@ -292,6 +293,8 @@ export const AccountsLab = ({ trades, accountsLibrary, setAccountsLibrary, panel
                   <button 
                     onClick={() => {
                       const newLib = [...normalizedLibrary];
+                      const firmToDelete = newLib[firmIndex];
+                      if (onAccountsDeleted) onAccountsDeleted(firmToDelete.accounts.map(a => a.id));
                       newLib.splice(firmIndex, 1);
                       setAccountsLibrary(newLib);
                     }}
@@ -313,6 +316,8 @@ export const AccountsLab = ({ trades, accountsLibrary, setAccountsLibrary, panel
                       <button
                         onClick={() => {
                           const newLib = [...normalizedLibrary];
+                          const accountToDelete = newLib[firmIndex].accounts[accIdx];
+                          if (onAccountsDeleted) onAccountsDeleted([accountToDelete.id]);
                           newLib[firmIndex].accounts.splice(accIdx, 1);
                           setAccountsLibrary(newLib);
                         }}
