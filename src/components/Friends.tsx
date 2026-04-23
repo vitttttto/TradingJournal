@@ -69,6 +69,7 @@ export function Friends({
   const [selectedFriendTrade, setSelectedFriendTrade] = useState<TradeRecord | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [friendsOfFriend, setFriendsOfFriend] = useState<any[]>([]);
+  const [showConnectionsModal, setShowConnectionsModal] = useState<'followers' | 'following' | null>(null);
   const [friendCommunities, setFriendCommunities] = useState<any[]>([]);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   
@@ -235,10 +236,18 @@ export function Friends({
         .select('*')
         .in('user_id', friendIds)
         .order('sold_timestamp', { ascending: false })
-        .limit(5);
+        .limit(30);
         
       if (recentTrades) {
-         const mapped = recentTrades.map(t => {
+         const uniqueFriends = new Set();
+         const filtered = [];
+         for (const t of recentTrades) {
+           if (!uniqueFriends.has(t.user_id)) {
+             uniqueFriends.add(t.user_id);
+             filtered.push(t);
+           }
+         }
+         const mapped = filtered.slice(0, 5).map(t => {
              const f = friendList.find(x => x.id === t.user_id);
              return { ...t, friendName: f?.username || f?.full_name || 'Unknown', friendAvatar: f?.avatar_url };
          });
@@ -484,7 +493,9 @@ export function Friends({
                  id: fid, 
                  username: fset?.username || 'Unknown', 
                  avatar_url: fset?.avatar_url,
-                 isMutual: myFriendIds.has(fid)
+                 isMutual: myFriendIds.has(fid),
+                 isFollower: followerIds.has(fid),
+                 isFollowing: followingIds.has(fid)
               };
             });
             setFriendsOfFriend(mappedFriends);
@@ -881,7 +892,7 @@ export function Friends({
               {selectedDayTrades.trades.map((trade: any) => {
                 if (!trade) return null;
                 const status = getTradeStatus(trade.pnl || 0, -50, 50);
-                const tone = status === "WIN" ? { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400" } : status === "LOSS" ? { bg: "bg-rose-500/10", border: "border-rose-500/20", text: "text-rose-400" } : { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400" };
+                const tone = status === "win" ? { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400" } : status === "loss" ? { bg: "bg-rose-500/10", border: "border-rose-500/20", text: "text-rose-400" } : { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400" };
                 
                 return (
                   <button
@@ -896,7 +907,7 @@ export function Friends({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className={`flex h-12 w-12 items-center justify-center rounded-xl border ${tone.bg} ${tone.border} ${tone.text}`}>
-                          {status === "WIN" ? <TrendingUp className="h-5 w-5" /> : status === "LOSS" ? <TrendingDown className="h-5 w-5" /> : <div className="h-2 w-4 rounded-full bg-current" />}
+                          {status === "win" ? <TrendingUp className="h-5 w-5" /> : status === "loss" ? <TrendingDown className="h-5 w-5" /> : <div className="h-2 w-4 rounded-full bg-current" />}
                         </div>
                         <div>
                           <div className="font-semibold text-white flex items-center gap-2">
@@ -929,8 +940,13 @@ export function Friends({
     </>
   );
 
-  if (isLoading && viewUserId) {
-    if (isModal) {
+  const selectedDayTrades = selectedDayKey && friendStats ? {
+    title: new Date(selectedDayKey).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }),
+    trades: Object.values(friendStats.weeks || {}).flatMap((w: any) => w.days).find((d: any) => toDayKey(new Date(d.date).getTime()) === selectedDayKey)?.trades || []
+  } : null;
+
+  if (isLoading || (viewUserId && activeView === 'list')) {
+    if (isModal && viewUserId) {
       return (
         <div className="fixed inset-0 z-[1000] p-4 flex items-center justify-center backdrop-blur-md bg-black/40 mt-[env(safe-area-inset-top)] sm:mt-16">
           <div className="flex items-center justify-center py-32">
@@ -939,11 +955,13 @@ export function Friends({
         </div>
       );
     }
-    return (
-      <div className="flex items-center justify-center py-32 w-full">
-         <Loader2 className="h-10 w-10 animate-spin text-emerald-400" />
-      </div>
-    );
+    if (viewUserId || (isLoading && activeView === 'list' && friends.length === 0)) {
+      return (
+        <div className="flex items-center justify-center py-32 w-full">
+           <Loader2 className="h-10 w-10 animate-spin text-emerald-400" />
+        </div>
+      );
+    }
   }
 
   if ((activeView === 'friend' || activeView === 'friend-journal') && selectedFriend) {
@@ -1039,13 +1057,23 @@ export function Friends({
         {activeView === 'friend' && (
           <div className="space-y-6">
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-3xl border p-6 text-center backdrop-blur-2xl" style={panelStyle}>
-                <div className="text-3xl font-bold text-white">{selectedFriend.settings?.hidden_connections ? '-' : (selectedFriend.followersCount || 0)}</div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1">Followers</div>
+              <div className="rounded-3xl border p-6 text-center backdrop-blur-2xl transition-all" style={panelStyle}>
+                <button 
+                  onClick={() => !selectedFriend.settings?.hidden_connections && setShowConnectionsModal('followers')} 
+                  className={`flex flex-col items-center w-full ${!selectedFriend.settings?.hidden_connections ? 'cursor-pointer hover:opacity-80 hover:scale-105 transition-transform' : 'opacity-70 cursor-not-allowed'}`}
+                >
+                  <div className="text-3xl font-bold text-white">{selectedFriend.settings?.hidden_connections ? '-' : (selectedFriend.followersCount || 0)}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1">Followers</div>
+                </button>
               </div>
-              <div className="rounded-3xl border p-6 text-center backdrop-blur-2xl" style={panelStyle}>
-                <div className="text-3xl font-bold text-white">{selectedFriend.settings?.hidden_connections ? '-' : (selectedFriend.followingCount || 0)}</div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1">Following</div>
+              <div className="rounded-3xl border p-6 text-center backdrop-blur-2xl transition-all" style={panelStyle}>
+                <button 
+                  onClick={() => !selectedFriend.settings?.hidden_connections && setShowConnectionsModal('following')} 
+                  className={`flex flex-col items-center w-full ${!selectedFriend.settings?.hidden_connections ? 'cursor-pointer hover:opacity-80 hover:scale-105 transition-transform' : 'opacity-70 cursor-not-allowed'}`}
+                >
+                  <div className="text-3xl font-bold text-white">{selectedFriend.settings?.hidden_connections ? '-' : (selectedFriend.followingCount || 0)}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1">Following</div>
+                </button>
               </div>
               <div className="rounded-3xl border p-6 text-center backdrop-blur-2xl" style={panelStyle}>
                 <div className="text-3xl font-bold text-emerald-400">{selectedFriend.likesCount || 0}</div>
@@ -1154,7 +1182,7 @@ export function Friends({
                             <>
                               <div className={`text-[10px] min-[380px]:text-xs sm:text-base md:text-lg font-bold tracking-tight truncate w-full text-left ${day.pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                                 <span className="sm:hidden">{Math.abs(Math.round(day.pnl))}</span>
-                                <span className="hidden sm:inline">{day.pnl > 0 ? `+` : ''}{formatSignedCurrency(day.pnl)}</span>
+                                <span className="hidden sm:inline">{formatSignedCurrency(day.pnl)}</span>
                               </div>
                               <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] md:text-xs text-slate-300 truncate w-full mt-0.5">
                                 <span>{day.trades.length} <span className="hidden sm:inline">{day.trades.length === 1 ? 'trade' : 'trades'}</span></span>
@@ -1170,11 +1198,14 @@ export function Friends({
                 </div>
               </div>
 
-              <div className="space-y-1 sm:space-y-2.5 flex flex-col xl:justify-center">
-                  <div className="rounded-xl sm:rounded-2xl border p-2 sm:p-3 flex items-center justify-between sm:block" style={{ ...panelStyle, height: `auto`, minHeight: 'unset' }}>
-                    <div className="text-[10px] sm:text-xs uppercase tracking-[0.16em] text-slate-400">Total Profit</div>
-                    <div className={`sm:mt-2 text-xs sm:text-base font-semibold ${friendStats.netPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatSignedCurrency(friendStats.netPnl)}</div>
+              <div className="space-y-1 sm:space-y-2.5">
+                <div className="h-0 sm:h-6 hidden sm:block" />
+                {Object.entries(friendStats.weeks || {}).map(([weekKey, weekData]: [string, any], index: number) => (
+                  <div key={weekKey} className="rounded-xl sm:rounded-2xl border p-2 sm:p-3 flex items-center justify-between sm:block" style={{ ...panelStyle, height: `auto`, minHeight: 'unset' }}>
+                    <div className="text-[10px] sm:text-xs uppercase tracking-[0.16em] text-slate-400">Week {index + 1}</div>
+                    <div className={`sm:mt-2 text-xs sm:text-base font-semibold ${weekData.pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatSignedCurrency(weekData.pnl)}</div>
                   </div>
+                ))}
               </div>
             </div>
 
@@ -1327,7 +1358,22 @@ export function Friends({
   if (isModal) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between relative rounded-3xl p-3 sm:px-6 sm:py-4 bg-white/5 border border-white/10 backdrop-blur-xl">
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Social & Friends</h1>
+        <button 
+          onClick={() => setViewUserId(user.id)}
+          className={`relative p-0.5 rounded-full transition-all border border-white/10 overflow-hidden hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.05)]`}
+          title="My Profile"
+        >
+          {user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
+             <img src={user.user_metadata?.avatar_url || user.user_metadata?.picture} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover" />
+          ) : (
+             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/10 flex items-center justify-center font-bold text-white rounded-full">{(user.user_metadata?.full_name || 'U')[0].toUpperCase()}</div>
+          )}
+        </button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1fr_350px]">
         <div className="space-y-6">
           <div className="rounded-3xl border p-6 backdrop-blur-2xl" style={panelStyle}>
