@@ -2674,19 +2674,19 @@ export default function App() {
                         {item.id === "lab" ? (
                           <>
                             <button
-                              onClick={() => handleTabChange("lab")}
+                              onClick={() => setActiveTab("lab")}
                               className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${activeTab === "lab" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                             >
                               Lab
                             </button>
                             <button
-                              onClick={() => handleTabChange("reports")}
+                              onClick={() => setActiveTab("reports")}
                               className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${activeTab === "reports" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                             >
                               Reports
                             </button>
                             <button
-                              onClick={() => handleTabChange("accounts")}
+                              onClick={() => setActiveTab("accounts")}
                               className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${activeTab === "accounts" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                             >
                               Accounts
@@ -2695,13 +2695,13 @@ export default function App() {
                         ) : (
                           <>
                             <button
-                              onClick={() => handleTabChange("terminal")}
+                              onClick={() => setActiveTab("terminal")}
                               className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${activeTab === "terminal" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                             >
                               Terminal
                             </button>
                             <button
-                              onClick={() => handleTabChange("communities")}
+                              onClick={() => setActiveTab("communities")}
                               className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${activeTab === "communities" ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                             >
                               Communities
@@ -3823,7 +3823,7 @@ export default function App() {
               if (tab === "friends" && id) {
                 setViewUserId(id);
               } else {
-                handleTabChange(tab);
+                setActiveTab(tab);
                 if (id) setViewUserId(id);
               }
             }}
@@ -3859,7 +3859,7 @@ export default function App() {
               if (tab === "friends" && id) {
                 setViewUserId(id);
               } else {
-                handleTabChange(tab);
+                setActiveTab(tab);
                 if (id) setViewUserId(id);
               }
             }}
@@ -4467,11 +4467,11 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setIsTradeEditMode(!isTradeEditMode)}
-                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-colors border ${isTradeEditMode ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white"}`}
+                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all border ${isTradeEditMode ? "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 hover:text-amber-300 hover:scale-105 active:scale-95" : "bg-white/5 text-slate-300 border-white/10 hover:bg-white/10 hover:text-white hover:scale-105 active:scale-95"}`}
                 >
                   {isTradeEditMode ? "Editing Mode" : "View Mode"}
                 </button>
-                <button onClick={() => openTradeModal(null)} className="rounded-2xl p-2 text-slate-400 hover:bg-white/10 hover:text-white">
+                <button onClick={() => openTradeModal(null)} className="rounded-2xl p-2 text-slate-400 hover:bg-white/10 hover:text-white transition-all hover:scale-110 active:scale-95">
                   <XCircle className="h-6 w-6" />
                 </button>
               </div>
