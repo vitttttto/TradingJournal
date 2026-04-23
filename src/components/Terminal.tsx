@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { normalizeSymbol } from '../App';
-import { TrendingUp, TrendingDown, Image as ImageIcon, Eye, Heart, MessageCircle, Bell, X, Send } from 'lucide-react';
+import { TrendingUp, TrendingDown, Image as ImageIcon, Eye, Heart, MessageCircle, Bell, X, Send, Loader2 } from 'lucide-react';
 
 const hexToRgba = (hex: string, alpha: number) => {
   const r = parseInt(hex.slice(1, 3), 16) || 0;
@@ -31,7 +31,8 @@ export function Terminal({
   const [feedTrades, setFeedTrades] = useState<any[]>([]);
   const [trendingTrades, setTrendingTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+  const [notifications, setNotifications] = useState<any[]>([]);
+
   // Interactions State
   const [likes, setLikes] = useState<Record<string, { count: number, likedByMe: boolean }>>({});
   const [comments, setComments] = useState<Record<string, any[]>>({});
@@ -43,6 +44,57 @@ export function Terminal({
   
   // Image Hover / Zoom State
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  const loadNotifications = async () => {
+      try {
+          const notifs = [];
+          
+          const { data: myTrades } = await supabase.from('trades_v2').select('id, symbol').eq('user_id', user.id).limit(100);
+          const myTradeIds = myTrades?.map(t => t.id) || [];
+          
+          if (myTradeIds.length > 0) {
+              const { data: likesOut } = await supabase.from('trade_likes').select('created_at, user_id, trade_id').in('trade_id', myTradeIds).neq('user_id', user.id).limit(20);
+              if (likesOut) {
+                  for (const l of likesOut) {
+                      notifs.push({ id: `like-${l.trade_id}-${l.user_id}`, type: 'like', user_id: l.user_id, date: l.created_at, trade_id: l.trade_id, text: 'liked your trade' });
+                  }
+              }
+              
+              const { data: commsOut } = await supabase.from('trade_comments').select('*').in('trade_id', myTradeIds).neq('user_id', user.id).limit(20);
+              if (commsOut) {
+                  for (const c of commsOut) {
+                      notifs.push({ id: `comm-${c.id}`, type: 'comment', user_id: c.user_id, date: c.created_at, trade_id: c.trade_id, text: `commented: "${c.text}"` });
+                  }
+              }
+          }
+          
+          const { data: followsOut } = await supabase.from('friendships').select('*').eq('friend_id', user.id).limit(20);
+          if (followsOut) {
+              for (const f of followsOut) {
+                  notifs.push({ id: `fol-${f.user_id}`, type: 'follow', user_id: f.user_id, date: f.created_at || new Date().toISOString(), text: f.status === 'pending' ? 'requested to follow you' : 'started following you' });
+              }
+          }
+          
+          const uids = Array.from(new Set(notifs.map(n => n.user_id)));
+          const { data: userSettings } = await supabase.from('user_settings').select('user_id, username, avatar_url').in('user_id', uids);
+          const uMap: any = {};
+          if (userSettings) userSettings.forEach(u => uMap[u.user_id] = u);
+          
+          const finalNotifs = notifs.map(n => ({
+              ...n,
+              actorName: uMap[n.user_id]?.username || 'Someone',
+              actorAvatar: uMap[n.user_id]?.avatar_url
+          })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 20);
+          
+          setNotifications(finalNotifs);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  useEffect(() => {
+    if (showNotifications) loadNotifications();
+  }, [showNotifications]);
 
   useEffect(() => {
     if (user) {
@@ -346,6 +398,16 @@ export function Terminal({
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
       <div className="flex items-center justify-between relative rounded-2xl p-1 bg-white/5 border border-white/10 backdrop-blur-xl">
+        <button 
+          onClick={() => onNavigate && onNavigate('friends', user.id)}
+          className={`absolute -left-14 sm:-left-16 top-1/2 -translate-y-1/2 p-0.5 rounded-full transition-all border border-white/10 overflow-hidden hover:scale-105 active:scale-95`}
+        >
+          {user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
+             <img src={user.user_metadata?.avatar_url || user.user_metadata?.picture} className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover" />
+          ) : (
+             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/10 flex items-center justify-center font-bold text-white rounded-full">{(user.user_metadata?.full_name || 'U')[0].toUpperCase()}</div>
+          )}
+        </button>
         <div className="flex w-full">
           <button 
             onClick={() => setActiveTab('feed')}
@@ -382,9 +444,32 @@ export function Terminal({
       {showNotifications && (
         <div className="rounded-3xl border p-6 backdrop-blur-2xl animate-fade-in" style={panelStyle}>
           <h3 className="text-lg font-bold text-white mb-4">Notifications</h3>
-          <div className="text-slate-400 text-sm py-8 text-center italic">
-            No recent activity.
-          </div>
+          {notifications.length > 0 ? (
+            <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+              {notifications.map((n) => (
+                <div key={n.id} className="flex gap-3">
+                  {n.actorAvatar ? (
+                    <img src={n.actorAvatar} className="w-8 h-8 rounded-full border border-white/10 object-cover cursor-pointer hover:opacity-80 transition-opacity shrink-0" onClick={() => onNavigate && onNavigate('friends', n.user_id)} />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-xs border border-white/10 cursor-pointer hover:bg-white/20 transition-colors shrink-0" onClick={() => onNavigate && onNavigate('friends', n.user_id)}>
+                      {n.actorName.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-sm font-semibold text-white">
+                      <span className="cursor-pointer hover:text-emerald-400 transition-colors" onClick={() => onNavigate && onNavigate('friends', n.user_id)}>{n.actorName}</span>
+                      <span className="text-slate-300 ml-1.5">{n.text}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500">{new Date(n.date).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-slate-400 text-sm py-8 text-center italic">
+              No recent activity.
+            </div>
+          )}
         </div>
       )}
       
