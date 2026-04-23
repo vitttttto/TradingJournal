@@ -489,7 +489,7 @@ export function Terminal({
              const tradeComments = comments[t.id] || [];
 
              return (
-               <div key={t.id || idx} className="rounded-3xl border border-white/10 bg-[#0f1115]/80 backdrop-blur-3xl overflow-hidden shadow-2xl">
+               <div key={t.id || idx} className="rounded-3xl border overflow-hidden backdrop-blur-2xl shadow-2xl" style={panelStyle}>
                  <div className="p-5">
                    <div className="flex items-start justify-between">
                      <div className="flex items-center gap-3">
